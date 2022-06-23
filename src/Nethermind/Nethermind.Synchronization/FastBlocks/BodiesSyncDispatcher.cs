@@ -56,6 +56,11 @@ namespace Nethermind.Synchronization.FastBlocks
 
                         batchLocal.Response = t.Result;
                     }
+
+                    if (t.IsFaulted)
+                    {
+                        throw t.Exception;
+                    }
                 }, batch);
         }
     }
