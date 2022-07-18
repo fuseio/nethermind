@@ -277,6 +277,10 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
+    "fuse": {
+      "commandName": "Project",
+      "commandLineArgs": "--JsonRpc.Enabled true --config configs\\fuse.cfg --baseDbPath C:\\nethermind_db"
+    },
     "Docker": {
       "commandName": "Docker",
       "commandLineArgs": "-c goerli -dd /data --JsonRpc.Enabled true --JsonRpc.Host 0.0.0.0"
