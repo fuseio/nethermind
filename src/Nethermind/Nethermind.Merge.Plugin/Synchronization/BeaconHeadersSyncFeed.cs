@@ -180,7 +180,8 @@ public sealed class BeaconHeadersSyncFeed : HeadersSyncFeed
         // Found existing block in the block tree
         if (!_syncConfig.StrictMode && _blockTree.IsKnownBlock(header.Number, header.GetOrCalculateHash()))
         {
-            _chainMerged = true;
+            if (!_syncConfig.StrictMode)
+                _chainMerged = true;
             if (_logger.IsTrace)
                 _logger.Trace(
                     $"Found header to join dangling beacon chain {header.ToString(BlockHeader.Format.FullHashAndNumber)}");
