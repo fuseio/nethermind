@@ -42,12 +42,12 @@ namespace Nethermind.Merge.Plugin.BlockProduction
     {
         private readonly PostMergeBlockProducer _blockProducer;
         private readonly IBlockImprovementContextFactory _blockImprovementContextFactory;
-        private readonly ISealer _sealer;
         private readonly ILogger _logger;
         private readonly List<string> _payloadsToRemove = new();
 
         // by default we will cleanup the old payload once per six slot. There is no need to fire it more often
         public const int SlotsPerOldPayloadCleanup = 6;
+        public const int GetPayloadWaitForFullBlockMillisecondsDelay = 500;
         private readonly TimeSpan _cleanupOldPayloadDelay;
 
         // first ExecutionPayloadV1 is empty (without txs), second one is the ideal one
@@ -56,7 +56,6 @@ namespace Nethermind.Merge.Plugin.BlockProduction
         public PayloadPreparationService(
             PostMergeBlockProducer blockProducer,
             IBlockImprovementContextFactory blockImprovementContextFactory,
-            ISealer sealer,
             ITimerFactory timerFactory,
             ILogManager logManager,
             TimeSpan timePerSlot,
@@ -64,7 +63,6 @@ namespace Nethermind.Merge.Plugin.BlockProduction
         {
             _blockProducer = blockProducer;
             _blockImprovementContextFactory = blockImprovementContextFactory;
-            _sealer = sealer;
             TimeSpan timeout = timePerSlot;
             _cleanupOldPayloadDelay = 2 * timePerSlot; // 2 * slots time
             ITimer timer = timerFactory.CreateTimer(slotsPerOldPayloadCleanup * timeout);
@@ -115,7 +113,7 @@ namespace Nethermind.Merge.Plugin.BlockProduction
             {
                 if (payload.Value.CurrentBestBlock is not null && payload.Value.CurrentBestBlock.Timestamp + (uint)_cleanupOldPayloadDelay.Seconds <= utcNow.Seconds)
                 {
-                    if (_logger.IsInfo) _logger.Info($"A new payload to remove: {payload.Key}, Current time {utcNow}, Payload timestamp: {payload.Value.CurrentBestBlock.Timestamp}");
+                    if (_logger.IsInfo) _logger.Info($"A new payload to remove: {payload.Key}, Current time {utcNow.Seconds}, Payload timestamp: {payload.Value.CurrentBestBlock.Timestamp}");
                     _payloadsToRemove.Add(payload.Key);
                 }
             }
@@ -159,12 +157,17 @@ namespace Nethermind.Merge.Plugin.BlockProduction
             return t.Result;
         }
 
-        public Block? GetPayload(string payloadId)
+        public async ValueTask<Block?> GetPayload(string payloadId)
         {
             if (_payloadStorage.TryGetValue(payloadId, out IBlockImprovementContext? blockContext))
             {
                 using (blockContext)
                 {
+                    if (!blockContext.ImprovementTask.IsCompleted)
+                    {
+                        await Task.WhenAny(blockContext.ImprovementTask, Task.Delay(GetPayloadWaitForFullBlockMillisecondsDelay));
+                    }
+                    
                     return blockContext.CurrentBestBlock;
                 }
             }

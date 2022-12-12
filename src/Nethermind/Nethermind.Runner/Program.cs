@@ -21,6 +21,8 @@ using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Runtime.Loader;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -32,6 +34,7 @@ using Nethermind.Consensus.AuRa;
 using Nethermind.Consensus.Clique;
 using Nethermind.Consensus.Ethash;
 using Nethermind.Core;
+using Nethermind.Db.Rocks;
 using Nethermind.Hive;
 using Nethermind.KeyStore.Config;
 using Nethermind.Logging;
@@ -43,6 +46,7 @@ using Nethermind.Seq.Config;
 using Nethermind.Serialization.Json;
 using NLog;
 using NLog.Config;
+using RocksDbSharp;
 using ILogger = Nethermind.Logging.ILogger;
 
 namespace Nethermind.Runner
@@ -74,7 +78,7 @@ namespace Nethermind.Runner
                     logger.Error(FailureString + eventArgs.ExceptionObject);
                 }
             };
-
+                
             try
             {
                 Run(args);
@@ -95,13 +99,25 @@ namespace Nethermind.Runner
             }
         }
 
-        private static ILogger GetCriticalLogger() => new NLogManager("logs.txt").GetClassLogger();
+        private static ILogger GetCriticalLogger() 
+        {
+            try
+            {
+                return new NLogManager("logs.txt").GetClassLogger();
+            }
+            catch
+            {
+                if (_logger.IsWarn) _logger.Warn("Critical file logging could not be instantiated! Sticking to console logging till config is loaded.");
+                return _logger;
+            }
+        }
 
         private static void Run(string[] args)
         {
             _logger.Info("Nethermind starting initialization.");
 
             AppDomain.CurrentDomain.ProcessExit += CurrentDomainOnProcessExit;
+            AssemblyLoadContext.Default.ResolvingUnmanagedDll += OnResolvingUnmanagedDll;
 
             GlobalDiagnosticsContext.Set("version", ClientVersion.Version);
             CommandLineApplication app = new() { Name = "Nethermind.Runner" };
@@ -153,6 +169,7 @@ namespace Nethermind.Runner
 
                 EthereumJsonSerializer serializer = new();
                 if (_logger.IsDebug) _logger.Debug($"Nethermind config:{Environment.NewLine}{serializer.Serialize(initConfig, true)}{Environment.NewLine}");
+                if (_logger.IsInfo) _logger.Info($"RocksDb Version: {DbOnTheRocks.GetRocksDbVersion()}");
 
                 ApiBuilder apiBuilder = new(configProvider, logManager);
 
@@ -194,6 +211,20 @@ namespace Nethermind.Runner
 
             _ = app.Execute(args);
             _appClosed.Wait();
+        }
+
+        private static IntPtr OnResolvingUnmanagedDll(Assembly _, string nativeLibraryName)
+        {
+            const string MacosSnappyPath = "/opt/homebrew/Cellar/snappy";
+            var alternativePath = nativeLibraryName switch
+            {
+                "libdl" => "libdl.so.2",
+                "libsnappy" or "snappy" => Directory.Exists(MacosSnappyPath) ?
+                    Directory.EnumerateFiles(MacosSnappyPath, "libsnappy.dylib", SearchOption.AllDirectories).FirstOrDefault() : "libsnappy.so.1",
+                _ => null
+            };
+
+            return alternativePath is null ? IntPtr.Zero : NativeLibrary.Load(alternativePath);
         }
 
         private static void BuildOptionsFromConfigFiles(CommandLineApplication app)
@@ -291,11 +322,10 @@ namespace Nethermind.Runner
             CommandOption configsDirectory,
             CommandOption configFile)
         {
-            ILogger logger = SimpleConsoleLogger.Instance;
             if (loggerConfigSource.HasValue())
             {
                 string nLogPath = loggerConfigSource.Value();
-                logger.Info($"Loading NLog configuration file from {nLogPath}.");
+                _logger.Info($"Loading NLog configuration file from {nLogPath}.");
 
                 try
                 {
@@ -303,17 +333,17 @@ namespace Nethermind.Runner
                 }
                 catch (Exception e)
                 {
-                    logger.Info($"Failed to load NLog configuration from {nLogPath}. {e}");
+                    _logger.Info($"Failed to load NLog configuration from {nLogPath}. {e}");
                 }
             }
             else
             {
-                logger.Info($"Loading standard NLog.config file from {"NLog.config".GetApplicationResourcePath()}.");
+                _logger.Info($"Loading standard NLog.config file from {"NLog.config".GetApplicationResourcePath()}.");
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 LogManager.Configuration = new XmlLoggingConfiguration("NLog.config".GetApplicationResourcePath());
                 stopwatch.Stop();
 
-                logger.Info($"NLog.config loaded in {stopwatch.ElapsedMilliseconds}ms.");
+                _logger.Info($"NLog.config loaded in {stopwatch.ElapsedMilliseconds}ms.");
             }
 
             // TODO: dynamically switch log levels from CLI!
@@ -379,16 +409,16 @@ namespace Nethermind.Runner
                 }
             }
 
-            logger.Info($"Reading config file from {configFilePath}");
+            _logger.Info($"Reading config file from {configFilePath}");
             configProvider.AddSource(new JsonConfigSource(configFilePath));
             configProvider.Initialize();
             var incorrectSettings = configProvider.FindIncorrectSettings();
             if(incorrectSettings.Errors.Count() > 0)
             {
-                logger.Warn($"Incorrect config settings found:{Environment.NewLine}{incorrectSettings.ErrorMsg}");
+                _logger.Warn($"Incorrect config settings found:{Environment.NewLine}{incorrectSettings.ErrorMsg}");
             }
 
-            logger.Info("Configuration initialized.");
+            _logger.Info("Configuration initialized.");
             return configProvider;
         }
 

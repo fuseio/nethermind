@@ -1,16 +1,16 @@
 //  Copyright (c) 2021 Demerzel Solutions Limited
 //  This file is part of the Nethermind library.
-// 
+//
 //  The Nethermind library is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU Lesser General Public License as published by
 //  the Free Software Foundation, either version 3 of the License, or
 //  (at your option) any later version.
-// 
+//
 //  The Nethermind library is distributed in the hope that it will be useful,
 //  but WITHOUT ANY WARRANTY; without even the implied warranty of
 //  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 //  GNU Lesser General Public License for more details.
-// 
+//
 //  You should have received a copy of the GNU Lesser General Public License
 //  along with the Nethermind. If not, see <http://www.gnu.org/licenses/>.
 
@@ -19,6 +19,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Nethermind.Blockchain;
 using Nethermind.Blockchain.Synchronization;
@@ -41,7 +42,7 @@ namespace Nethermind.Synchronization.FastBlocks
             // In order to support that we need to support another pivot
             { ChainId.Kovan, new Dictionary<long, ulong> { {148240, 19430113280} } }
         };
-        
+
         private readonly ILogger _logger;
         private readonly ISyncPeerPool _syncPeerPool;
         protected readonly ISyncReport _syncReport;
@@ -60,12 +61,12 @@ namespace Nethermind.Synchronization.FastBlocks
         protected long _pivotNumber;
 
         /// <summary>
-        /// Requests awaiting to be sent - these are results of partial or invalid responses being queued again 
+        /// Requests awaiting to be sent - these are results of partial or invalid responses being queued again
         /// </summary>
         protected readonly ConcurrentQueue<HeadersSyncBatch> _pending = new();
 
         /// <summary>
-        /// Requests sent to peers for which responses have not been received yet  
+        /// Requests sent to peers for which responses have not been received yet
         /// </summary>
         protected readonly ConcurrentDictionary<HeadersSyncBatch, object> _sent = new();
 
@@ -73,7 +74,7 @@ namespace Nethermind.Synchronization.FastBlocks
         /// Responses received from peers but waiting in a queue for some other requests to be handled first
         /// </summary>
         protected readonly ConcurrentDictionary<long, HeadersSyncBatch> _dependencies = new();
-        
+
         protected virtual BlockHeader? LowestInsertedBlockHeader => _blockTree.LowestInsertedHeader;
 
         protected virtual MeasuredProgress HeadersSyncProgressReport => _syncReport.FastBlocksHeaders;
@@ -83,7 +84,7 @@ namespace Nethermind.Synchronization.FastBlocks
         private bool AnyHeaderDownloaded => LowestInsertedBlockHeader != null;
 
         private long HeadersInQueue => _dependencies.Sum(hd => hd.Value.Response?.Length ?? 0);
-        
+
         private ulong MemoryInQueue => (ulong)_dependencies
             .Sum(d => (d.Value.Response ?? Array.Empty<BlockHeader>()).Sum(h =>
                 // ReSharper disable once ConvertClosureToMethodGroup
@@ -132,13 +133,13 @@ namespace Nethermind.Synchronization.FastBlocks
         }
 
         protected virtual bool StartingFeedCondition() => _syncConfig.FastBlocks;
-        
+
         protected override SyncMode ActivationSyncModes { get; }
             = SyncMode.FastHeaders & ~SyncMode.FastBlocks;
 
         public override bool IsMultiFeed => true;
         public override AllocationContexts Contexts => AllocationContexts.Headers;
-        
+
         private bool ShouldBuildANewBatch()
         {
             bool destinationHeaderRequested = _lowestRequestedHeaderNumber == HeadersDestinationNumber;
@@ -168,7 +169,7 @@ namespace Nethermind.Synchronization.FastBlocks
             Finish();
             PostFinishCleanUp();
         }
-        
+
         protected virtual void PostFinishCleanUp()
         {
             HeadersSyncProgressReport.Update(_pivotNumber);
@@ -180,19 +181,20 @@ namespace Nethermind.Synchronization.FastBlocks
             _syncReport.HeadersInQueue.MarkEnd();
         }
 
-        private void HandleDependentBatches()
+        private void HandleDependentBatches(CancellationToken cancellationToken)
         {
             long? lowest = LowestInsertedBlockHeader?.Number;
             while (lowest.HasValue && _dependencies.TryRemove(lowest.Value - 1, out HeadersSyncBatch? dependentBatch))
             {
                 InsertHeaders(dependentBatch!);
                 lowest = LowestInsertedBlockHeader?.Number;
+                cancellationToken.ThrowIfCancellationRequested();
             }
         }
 
-        public override Task<HeadersSyncBatch?> PrepareRequest()
+        public override Task<HeadersSyncBatch?> PrepareRequest(CancellationToken cancellationToken = default)
         {
-            HandleDependentBatches();
+            HandleDependentBatches(cancellationToken);
 
             if (_pending.TryDequeue(out HeadersSyncBatch? batch))
             {
@@ -272,7 +274,7 @@ namespace Nethermind.Synchronization.FastBlocks
                 if(_logger.IsDebug) _logger.Debug("Received a NULL batch as a response");
                 return SyncResponseHandlingResult.InternalError;
             }
-            
+
             if ((batch.Response?.Length ?? 0) == 0)
             {
                 batch.MarkHandlingStart();
@@ -334,13 +336,13 @@ namespace Nethermind.Synchronization.FastBlocks
             return dependentBatch;
         }
 
-        private int InsertHeaders(HeadersSyncBatch batch)
+        protected virtual int InsertHeaders(HeadersSyncBatch batch)
         {
             if (batch.Response == null)
             {
                 return 0;
             }
-            
+
             if (batch.Response.Length > batch.RequestSize)
             {
                 if (_logger.IsDebug)

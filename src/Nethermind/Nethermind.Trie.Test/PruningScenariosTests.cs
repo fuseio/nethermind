@@ -111,6 +111,16 @@ namespace Nethermind.Trie.Test
                 return this;
             }
 
+            public PruningContext SetManyAccountWithSameBalance(int startNum, int numOfAccount, UInt256 balance)
+            {
+                for (int i = 0; i < numOfAccount; i++)
+                {
+                    this.SetAccountBalance(startNum + i, balance);
+                }
+                return this;
+            }
+
+
             public PruningContext PruneOldBlock()
             {
                 return this;
@@ -119,6 +129,12 @@ namespace Nethermind.Trie.Test
             public PruningContext TurnOnPrune()
             {
                 _pruningStrategy.ShouldPruneEnabled = true;
+                return this;
+            }
+
+            public PruningContext SetPruningMemoryLimit(int? memoryLimit)
+            {
+                _pruningStrategy.WithMemoryLimit = memoryLimit;
                 return this;
             }
 
@@ -160,6 +176,13 @@ namespace Nethermind.Trie.Test
                 return this;
             }
 
+            public PruningContext CommitWithRandomChange()
+            {
+                SetAccountBalance(Random.Shared.Next(), (UInt256)Random.Shared.Next());
+                Commit();
+                return this;
+            }
+
             public PruningContext Commit()
             {
                 _storageProvider.Commit();
@@ -173,6 +196,16 @@ namespace Nethermind.Trie.Test
                 // `BlockProcessor.InitBranch` does this.
                 _stateProvider.Reset();
                 _stateProvider.StateRoot = _stateProvider.StateRoot;
+                return this;
+            }
+
+            public PruningContext DisposeAndRecreate()
+            {
+                _trieStore.Dispose();
+                _trieStore = new TrieStore(_dbProvider.StateDb, _pruningStrategy, _persistenceStrategy, _logManager);
+                _stateProvider = new StateProvider(_trieStore, _dbProvider.CodeDb, _logManager);
+                _storageProvider = new StorageProvider(_trieStore, _stateProvider, _logManager);
+                _stateReader = new StateReader(_trieStore, _dbProvider.CodeDb, _logManager);
                 return this;
             }
 
@@ -229,6 +262,8 @@ namespace Nethermind.Trie.Test
                 (long blockNumber, Keccak rootHash) branchPoint = _branchingPoints[name];
                 _blockNumber = branchPoint.blockNumber;
                 Keccak rootHash = branchPoint.rootHash;
+                _storageProvider.Reset();
+                _stateProvider.Reset();
                 _stateProvider.StateRoot = rootHash;
                 return this;
             }
@@ -452,36 +487,198 @@ namespace Nethermind.Trie.Test
         {
             Reorganization.MaxDepth = 3;
 
-            PruningContext.InMemoryAlwaysPrune
+            PruningContext.InMemory
                 .SetAccountBalance(1, 100)
                 .Commit()
                 .SetAccountBalance(2, 10)
                 .Commit()
 
                 .SaveBranchingPoint("revert_main")
-                .SetAccountBalance(1, 103)
                 .CreateAccount(3)
                 .SetStorage(3, 1, 999)
                 .Commit()
                 .SaveBranchingPoint("main")
 
-                // Storage is not set here, but commit set will commit this instead of block 3 in main as it appear later
+                    // We need this to get persisted
+                    // Storage is not set here, but commit set will commit this instead of previous block 3
+                    .RestoreBranchingPoint("revert_main")
+                    .SetManyAccountWithSameBalance(100, 20, 1)
+                    .Commit()
+                    .RestoreBranchingPoint("main")
+
+                .Commit()
+                .Commit()
+                .Commit()
+
+                .SetPruningMemoryLimit(10000)
+                // First commit it should prune and persist alternate block 3, memory usage should go down from 16k to 1.2k
+                .Commit()
+
+                .SetManyAccountWithSameBalance(100, 2, 1)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 2)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 3)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 4)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 5)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 6)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 7)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 8)
+                .Commit()
+                .VerifyStorageValue(3, 1, 999)
+                .SetManyAccountWithSameBalance(100, 2, 9)
+                .Commit()
+
+                // Storage root actually never got pruned even-though another parallel branch get persisted. This
+                // is because the condition `LastSeen < LastPersistedBlock` never turn to true.
+                .VerifyStorageValue(3, 1, 999);
+        }
+
+        [Test]
+        public void Persist_alternate_branch_commitset_of_length_2()
+        {
+            Reorganization.MaxDepth = 3;
+
+            PruningContext.InMemory
+                .SetAccountBalance(1, 100)
+                .Commit()
+                .SetAccountBalance(2, 10)
+                .Commit()
+
+                .SaveBranchingPoint("revert_main")
+
+                // Block 3
+                .CreateAccount(3)
+                .SetStorage(3, 1, 999)
+                .Commit()
+
+                // Block 4
+                .Commit()
+                .SaveBranchingPoint("main")
+
+                    // Block 3 - 2
+                    .RestoreBranchingPoint("revert_main")
+                    .Commit()
+
+                    // Block 4 - 2
+                    .SetManyAccountWithSameBalance(100, 20, 1)
+                    .Commit()
+                    .RestoreBranchingPoint("main")
+
+                .Commit()
+                .Commit()
+                .Commit()
+
+                .TurnOnPrune()
+                .Commit()
+
+                .VerifyStorageValue(3, 1, 999);
+        }
+
+        [Test]
+        public void Should_persist_all_block_of_same_level_on_dispose()
+        {
+            Reorganization.MaxDepth = 3;
+
+            PruningContext.InMemory
+                .SetAccountBalance(1, 100)
+                .Commit()
+                .SetAccountBalance(2, 10)
+                .CreateAccount(3)
+                .Commit()
+
+                .SaveBranchingPoint("revert_main")
+
+                .SetStorage(3, 1, 1)
+                .Commit()
+                .SaveBranchingPoint("branch_1")
+
                 .RestoreBranchingPoint("revert_main")
-                .SetAccountBalance(1, 103)
+                .SetStorage(3, 1, 2)
+                .Commit()
+                .SaveBranchingPoint("branch_2")
+
+                .RestoreBranchingPoint("revert_main")
+                .SetStorage(3, 1, 3)
+                .Commit()
+                .SaveBranchingPoint("branch_3")
+
+                .RestoreBranchingPoint("branch_1")
+                .Commit()
+                .Commit()
+                .Commit()
                 .Commit()
 
-                .RestoreBranchingPoint("main")
+                // The `TrieStoreBoundaryWatcher` only reports the block number, but previously TrieStore only persist one of the
+                // multiple possible block of the same number. So if the persisted block is not the same as main,
+                // you'll get trie exception on restart.
+                .DisposeAndRecreate()
+
+                // This should pass because the last committed branch is branch 3.
+                .RestoreBranchingPoint("branch_3")
+                .VerifyStorageValue(3, 1, 3)
+
+                // Previously this does not.
+                .RestoreBranchingPoint("branch_1")
+                .VerifyStorageValue(3, 1, 1)
+                .RestoreBranchingPoint("branch_2")
+                .VerifyStorageValue(3, 1, 2);
+        }
+
+        [Test]
+        public void Persist_with_2_alternate_branch_consecutive_of_each_other()
+        {
+            Reorganization.MaxDepth = 3;
+
+            PruningContext.InMemory
+                .SetAccountBalance(1, 100)
                 .Commit()
-                .SetAccountBalance(4, 108)
+                .SetAccountBalance(2, 10)
+                .Commit()
+
+                .SaveBranchingPoint("revert_main")
+
+                // Block 3
+                .CreateAccount(3)
+                .SetStorage(3, 1, 999)
+                .Commit()
+                .SaveBranchingPoint("main")
+
+                    // Block 3 - 2
+                    .RestoreBranchingPoint("revert_main")
+                    .Commit()
+
+                    .RestoreBranchingPoint("main")
+
+                // Block 4
+                .SaveBranchingPoint("revert_main")
+                .Commit()
+                .SaveBranchingPoint("main")
+
+                    .RestoreBranchingPoint("revert_main") // Go back to block 3
+                    // Block 4 - 2
+                    .SetStorage(3, 1, 1)
+                    .Commit()
+                    .RestoreBranchingPoint("main") // Go back to block 4 on main
+
+                .TurnOnPrune()
                 .Commit()
                 .Commit()
                 .Commit()
                 .Commit()
 
-                // Although the committed set is different, later commit set still refer to the storage root hash.
-                // When later set is committed, the storage root hash will be committed also, unless the alternate chain
-                // is longer than reorg depth, in which case, we have two parallel branch of length > reorg depth, which
-                // is not supported.
                 .VerifyStorageValue(3, 1, 999);
         }
 

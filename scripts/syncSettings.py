@@ -12,7 +12,7 @@ headers = {
     'Content-type': 'application/json',
 }
 
-print(emoji.emojize("Fast Sync configuration settings initialization     :white_check_mark: ", use_aliases=True))
+print(emoji.emojize("Fast Sync configuration settings initialization     :white_check_mark: "))
 
 configs = {
     # fast sync section
@@ -47,7 +47,7 @@ configs = {
         "multiplierRequirement": 10000
     },
     "xdai": {
-        "url": "http://rpc.gnosischain.com",
+        "url": "https://rpc.gnosischain.com",
         "blockReduced": 8192,
         "multiplierRequirement": 10000
     },
@@ -83,7 +83,7 @@ configs = {
         "multiplierRequirement": 30000 
     },
     "xdai_mev": {
-        "url": "http://rpc.gnosischain.com",
+        "url": "https://rpc.gnosischain.com",
         "blockReduced": 8192,
         "multiplierRequirement": 10000
     },
@@ -99,7 +99,7 @@ configs = {
         "multiplierRequirement": 30000 
     },
     "xdai_aa": {
-        "url": "http://rpc.gnosischain.com",
+        "url": "https://rpc.gnosischain.com",
         "blockReduced": 8192,
         "multiplierRequirement": 10000
     }
@@ -139,5 +139,5 @@ def fastBlocksSettings(configuration, apiUrl, blockReduced, multiplierRequiremen
             json.dump(data, mainnetCfgChanged, indent=2)
 
 for config, value in configs.items():
-    print(emoji.emojize(f"{config.capitalize()} section                                     :white_check_mark: ", use_aliases=True))
+    print(emoji.emojize(f"{config.capitalize()} section                                     :white_check_mark: "))
     fastBlocksSettings(config, value['url'], value['blockReduced'], value['multiplierRequirement'])

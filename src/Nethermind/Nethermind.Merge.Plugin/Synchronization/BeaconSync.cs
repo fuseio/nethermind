@@ -61,7 +61,7 @@ namespace Nethermind.Merge.Plugin.Synchronization
             _isInBeaconModeControl = true;
         }
 
-        public void InitBeaconHeaderSync(BlockHeader? blockHeader)
+        public void InitBeaconHeaderSync(BlockHeader blockHeader)
         {
             StopBeaconModeControl();
             _beaconPivot.EnsurePivot(blockHeader);
@@ -94,10 +94,18 @@ namespace Nethermind.Merge.Plugin.Synchronization
                 lowestInsertedBeaconHeader != null &&
                 _blockTree.IsKnownBlock(lowestInsertedBeaconHeader.Number - 1, lowestInsertedBeaconHeader.ParentHash!);
             bool finished = lowestInsertedBeaconHeader == null
-                            || lowestInsertedBeaconHeader.Number <= _syncConfig.PivotNumberParsed + 1
-                            || chainMerged;
+                            || lowestInsertedBeaconHeader.Number <= _beaconPivot.PivotDestinationNumber
+                            || (!_syncConfig.StrictMode && chainMerged);
 
-            if (_logger.IsTrace) _logger.Trace($"IsBeaconSyncHeadersFinished: {finished}, BeaconPivotExists: {_beaconPivot.BeaconPivotExists()}, LowestInsertedBeaconHeaderNumber: {_blockTree.LowestInsertedBeaconHeader?.Number}, BeaconPivot: {_beaconPivot.PivotNumber}, BeaconPivotDestinationNumber: {_beaconPivot.PivotDestinationNumber}");
+            if (_logger.IsTrace) _logger.Trace(
+                $"IsBeaconSyncHeadersFinished: {finished}," +
+                $" BeaconPivotExists: {_beaconPivot.BeaconPivotExists()}," +
+                $" LowestInsertedBeaconHeaderNumber: {_blockTree.LowestInsertedBeaconHeader?.Number}," +
+                $" BestSuggestedHeader: {_blockTree.BestSuggestedHeader?.Number}," +
+                $" ChainMerged: {chainMerged}," +
+                $" StrictMode: {_syncConfig.StrictMode}," +
+                $" BeaconPivot: {_beaconPivot.PivotNumber}," +
+                $" BeaconPivotDestinationNumber: {_beaconPivot.PivotDestinationNumber}");
             return finished;
         }
 
@@ -116,7 +124,7 @@ namespace Nethermind.Merge.Plugin.Synchronization
     {
         void StopSyncing();
 
-        void InitBeaconHeaderSync(BlockHeader? blockHeader);
+        void InitBeaconHeaderSync(BlockHeader blockHeader);
 
         void StopBeaconModeControl();
     }

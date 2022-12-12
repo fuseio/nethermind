@@ -66,6 +66,7 @@ namespace Nethermind.Consensus.Processing
         private DateTime _lastProcessedBlock;
 
         private int _currentRecoveryQueueSize;
+        private const int MaxBlocksDuringFastSyncTransition = 8192;
         private readonly CompositeBlockTracer _compositeBlockTracer = new();
         private readonly Stopwatch _stopwatch = new();
 
@@ -141,7 +142,7 @@ namespace Nethermind.Consensus.Processing
                 catch (Exception e)
                 {
                     Interlocked.Decrement(ref _queueCount);
-                    BlockRemoved?.Invoke(this, new BlockHashEventArgs(blockHash, ProcessingResult.QueueException));
+                    BlockRemoved?.Invoke(this, new BlockHashEventArgs(blockHash, ProcessingResult.QueueException, e));
                     if (e is not InvalidOperationException || !_recoveryQueue.IsAddingCompleted)
                     {
                         throw;
@@ -215,10 +216,10 @@ namespace Nethermind.Consensus.Processing
 
         private void RunRecoveryLoop()
         {
-            void DecrementQueue(Keccak blockHash, ProcessingResult processingResult)
+            void DecrementQueue(Keccak blockHash, ProcessingResult processingResult, Exception? exception = null)
             {
                 Interlocked.Decrement(ref _queueCount);
-                BlockRemoved?.Invoke(this, new BlockHashEventArgs(blockHash, processingResult));
+                BlockRemoved?.Invoke(this, new BlockHashEventArgs(blockHash, processingResult, exception));
                 FireProcessingQueueEmpty();
             }
 
@@ -240,7 +241,7 @@ namespace Nethermind.Consensus.Processing
                         }
                         catch (Exception e)
                         {
-                            DecrementQueue(blockRef.BlockHash, ProcessingResult.QueueException);
+                            DecrementQueue(blockRef.BlockHash, ProcessingResult.QueueException, e);
 
                             if (e is InvalidOperationException)
                             {
@@ -257,9 +258,9 @@ namespace Nethermind.Consensus.Processing
                         if (_logger.IsTrace) _logger.Trace("Block was removed from the DB and cannot be recovered (it belonged to an invalid branch). Skipping.");
                     }
                 }
-                catch
+                catch (Exception e)
                 {
-                    DecrementQueue(blockRef.BlockHash, ProcessingResult.Exception);
+                    DecrementQueue(blockRef.BlockHash, ProcessingResult.Exception, e);
                     throw;
                 }
             }
@@ -303,7 +304,7 @@ namespace Nethermind.Consensus.Processing
                 catch (Exception exception)
                 {
                     if (_logger.IsWarn) _logger.Warn($"Processing loop threw an exception. Block: {blockRef}, Exception: {exception}");
-                    BlockRemoved?.Invoke(this, new BlockHashEventArgs(blockRef.BlockHash, ProcessingResult.Exception));
+                    BlockRemoved?.Invoke(this, new BlockHashEventArgs(blockRef.BlockHash, ProcessingResult.Exception, exception));
                 }
                 finally
                 {
@@ -428,7 +429,7 @@ namespace Nethermind.Consensus.Processing
                 }
                 catch (InvalidBlockException ex)
                 {
-                    BlockTraceDumper.LogDiagnosticTrace(blockTracer, ex.InvalidBlockHash, _logger);
+                    BlockTraceDumper.LogDiagnosticTrace(blockTracer, ex.InvalidBlock.Hash!, _logger);
                 }
                 catch (Exception ex)
                 {
@@ -465,10 +466,10 @@ namespace Nethermind.Consensus.Processing
             {
                 InvalidBlock?.Invoke(this, new IBlockchainProcessor.InvalidBlockEventArgs
                 {
-                    InvalidBlockHash = ex.InvalidBlockHash,
+                    InvalidBlock = ex.InvalidBlock,
                 });
 
-                invalidBlockHash = ex.InvalidBlockHash;
+                invalidBlockHash = ex.InvalidBlock.Hash;
                 TraceFailingBranch(
                     processingBranch,
                     options,
@@ -591,6 +592,15 @@ namespace Nethermind.Consensus.Processing
 
                 if (isFastSyncTransition)
                 {
+                    // If we hit this condition, it means that something is wrong in MultiSyncModeSelector.
+                    // MultiSyncModeSelector switched to full sync when it shouldn't
+                    // In this case, it is better to stop searching for more blocks and failed during the processing than trying to build a branch up to the genesis point
+                    if (blocksToBeAddedToMain.Count > MaxBlocksDuringFastSyncTransition)
+                    {
+                        if (_logger.IsWarn) _logger.Warn($"Too long branch to be processed during fast sync transition. Current block to be processed {toBeProcessed}, StateRoot: {toBeProcessed?.StateRoot}");
+                        break;
+                    }
+
                     // if we have parent state it means that we don't need to go deeper
                     if (toBeProcessed?.StateRoot == null || _stateReader.HasStateForBlock(toBeProcessed.Header))
                     {

@@ -55,8 +55,8 @@ namespace Nethermind.Synchronization.Blocks
         private AllocationWithCancellation _allocationWithCancellation;
 
         protected SyncBatchSize _syncBatchSize;
-        private int _sinceLastTimeout;
-        protected readonly int[] _ancestorJumps = {1, 2, 3, 8, 16, 32, 64, 128, 256, 384, 512, 640, 768, 896, 1024};
+        protected int _sinceLastTimeout;
+        private readonly int[] _ancestorJumps = {1, 2, 3, 8, 16, 32, 64, 128, 256, 384, 512, 640, 768, 896, 1024};
 
         public BlockDownloader(
             ISyncFeed<BlocksRequest?>? feed,
@@ -342,6 +342,11 @@ namespace Nethermind.Synchronization.Blocks
                     Block currentBlock = blocks[blockIndex];
                     if (_logger.IsTrace) _logger.Trace($"Received {currentBlock} from {bestPeer}");
 
+                    if (currentBlock.IsBodyMissing)
+                    {
+                        throw new EthSyncException($"{bestPeer} didn't send body for block {currentBlock.ToString(Block.Format.Short)}.");
+                    }
+
                     // can move this to block tree now?
                     if (!_blockValidator.ValidateSuggestedBlock(currentBlock))
                     {
@@ -429,7 +434,7 @@ namespace Nethermind.Synchronization.Blocks
 
         private readonly Guid _sealValidatorUserGuid = Guid.NewGuid();
 
-        protected async Task<BlockHeader[]> RequestHeaders(PeerInfo peer, CancellationToken cancellation, long currentNumber, int headersToRequest)
+        protected virtual async Task<BlockHeader[]> RequestHeaders(PeerInfo peer, CancellationToken cancellation, long currentNumber, int headersToRequest)
         {
             _sealValidator.HintValidationRange(_sealValidatorUserGuid, currentNumber - 1028, currentNumber + 30000);
             Task<BlockHeader[]> headersRequest = peer.SyncPeer.GetBlockHeaders(currentNumber, headersToRequest, 0, cancellation);
@@ -457,6 +462,12 @@ namespace Nethermind.Synchronization.Blocks
                     context.SetBody(i + offset, result[i]);
                 }
 
+                if (result.Length == 0)
+                {
+                    if (_logger.IsTrace) _logger.Trace($"Peer sent no bodies. Peer: {peer}, Request: {hashesToRequest.Count}");
+                    return;
+                }
+
                 offset += result.Length;
             }
         }
@@ -475,7 +486,13 @@ namespace Nethermind.Synchronization.Blocks
                 for (int i = 0; i < result.Length; i++)
                 {
                     TxReceipt[] txReceipts = result[i];
-                    if (!context.TrySetReceipts(i + offset, txReceipts, out Block block))
+                    Block block = context.GetBlockByRequestIdx(i + offset);
+                    if (block.IsBodyMissing)
+                    {
+                        if (_logger.IsTrace) _logger.Trace($"Found incomplete blocks. {block.Hash}");
+                        return;
+                    }
+                    if (!context.TrySetReceipts(i + offset, txReceipts, out block))
                     {
                         throw new EthSyncException($"{peer} sent invalid receipts for block {block.ToString(Block.Format.Short)}.");
                     }
@@ -514,7 +531,7 @@ namespace Nethermind.Synchronization.Blocks
             }
         }
 
-        private void ValidateSeals(BlockHeader?[] headers, CancellationToken cancellation)
+        protected void ValidateSeals(BlockHeader?[] headers, CancellationToken cancellation)
         {
             if (_logger.IsTrace) _logger.Trace("Starting seal validation");
             ConcurrentQueue<Exception> exceptions = new();
@@ -536,7 +553,14 @@ namespace Nethermind.Synchronization.Blocks
 
                 try
                 {
-                    bool forceValidation = i == headers.Length - 1 || i == randomNumberForValidation;
+                    bool lastBlock = i == headers.Length - 1;
+                    // PoSSwitcher can't determine if a block is a terminal block if TD is missing due to another
+                    // problem. In theory, this should not be a problem, but additional seal check does no harm.
+                    bool terminalBlock = !lastBlock
+                                         && headers.Length > 1
+                                         && headers[i + 1].Difficulty == 0
+                                         && headers[i].Difficulty != 0;
+                    bool forceValidation = lastBlock || i == randomNumberForValidation || terminalBlock;
                     if (!_sealValidator.ValidateSeal(header, forceValidation))
                     {
                         if (_logger.IsTrace) _logger.Trace("One of the seals is invalid");
