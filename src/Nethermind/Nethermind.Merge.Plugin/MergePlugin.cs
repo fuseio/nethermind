@@ -1,4 +1,4 @@
-﻿//  Copyright (c) 2021 Demerzel Solutions Limited
+//  Copyright (c) 2021 Demerzel Solutions Limited
 //  This file is part of the Nethermind library.
 //
 //  The Nethermind library is free software: you can redistribute it and/or modify
@@ -29,6 +29,7 @@ using Nethermind.Consensus.Rewards;
 using Nethermind.Consensus.Validators;
 using Nethermind.Core;
 using Nethermind.Core.Crypto;
+using Nethermind.Core.Exceptions;
 using Nethermind.Db;
 using Nethermind.Facade.Proxy;
 using Nethermind.JsonRpc;
@@ -61,21 +62,19 @@ namespace Nethermind.Merge.Plugin
         private ManualBlockFinalizationManager _blockFinalizationManager = null!;
         private IMergeBlockProductionPolicy? _mergeBlockProductionPolicy;
 
-        public string Name => "Merge";
-        public string Description => "Merge plugin for ETH1-ETH2";
+        public virtual string Name => "Merge";
+        public virtual string Description => "Merge plugin for ETH1-ETH2";
         public string Author => "Nethermind";
 
-        public virtual bool MergeEnabled => _mergeConfig.Enabled;
-
-        private readonly IEnvironment _environment = new EnvironmentWrapper();
-
-        public MergePlugin() {}
-
-        public MergePlugin(IEnvironment? environment = null)
+        public virtual bool MergeEnabled => _mergeConfig.Enabled &&
+                                            !IsPreMergeConsensusAuRa(_api); // AuRa has dedicated plugin AuRaMergePlugin
+        protected bool IsPreMergeConsensusAuRa(INethermindApi api)
         {
-            if (environment != null)
-                _environment = environment;
+            return api.ChainSpec?.SealEngineType == SealEngineType.AuRa;
         }
+
+        // Don't remove default constructor. It is used by reflection when we're loading plugins
+        public MergePlugin() { }
 
         public virtual Task Init(INethermindApi nethermindApi)
         {
@@ -112,7 +111,7 @@ namespace Nethermind.Merge.Plugin
                 _blockFinalizationManager = new ManualBlockFinalizationManager();
 
                 _api.RewardCalculatorSource = new MergeRewardCalculatorSource(
-                   _api.RewardCalculatorSource ?? NoBlockRewards.Instance,  _poSSwitcher);
+                   _api.RewardCalculatorSource ?? NoBlockRewards.Instance, _poSSwitcher);
                 _api.SealValidator = new InvalidHeaderSealInterceptor(
                     new MergeSealValidator(_poSSwitcher, _api.SealValidator),
                     _invalidChainTracker,
@@ -128,7 +127,8 @@ namespace Nethermind.Merge.Plugin
             return Task.CompletedTask;
         }
 
-        private void FixTransitionBlock() {
+        private void FixTransitionBlock()
+        {
             // Special case during mainnet merge where if a transition block does not get processed through gossip
             // it does not get marked as main causing some issue on eth_getLogs.
             Keccak blockHash = new Keccak("0x55b11b918355b1ef9c5db810302ebad0bf2544255b530cdce90674d5887bb286");
@@ -161,19 +161,26 @@ namespace Nethermind.Merge.Plugin
 
         private void EnsureReceiptAvailable()
         {
+            if (HasTtd() == false) // by default we have Merge.Enabled = true, for chains that are not post-merge, we can skip this check, but we can still working with MergePlugin
+                return;
+
             ISyncConfig syncConfig = _api.Config<ISyncConfig>();
             if (syncConfig.FastSync)
             {
                 if (!syncConfig.DownloadReceiptsInFastSync || !syncConfig.DownloadBodiesInFastSync)
                 {
-                    if (_logger.IsError) _logger.Error("Receipt and body must be available for merge to function. The following configs values should be set to true: Sync.DownloadReceiptsInFastSync, Sync.DownloadBodiesInFastSync");
-                    _environment.Exit(ExitCodes.NoDownloadOldReceiptsOrBlocks);
+                    throw new InvalidConfigurationException(
+                        "Receipt and body must be available for merge to function. The following configs values should be set to true: Sync.DownloadReceiptsInFastSync, Sync.DownloadBodiesInFastSync",
+                        ExitCodes.NoDownloadOldReceiptsOrBlocks);
                 }
             }
         }
 
         private void EnsureJsonRpcUrl()
         {
+            if (HasTtd() == false) // by default we have Merge.Enabled = true, for chains that are not post-merge, wwe can skip this check, but we can still working with MergePlugin
+                return;
+
             IJsonRpcConfig jsonRpcConfig = _api.Config<IJsonRpcConfig>();
             if (!jsonRpcConfig.Enabled)
             {
@@ -209,9 +216,15 @@ namespace Nethermind.Merge.Plugin
 
             if (!hasEngineApiConfigured)
             {
-                if (_logger.IsError) _logger.Error("Engine module wasn't configured on any port. Nethermind can't work without engine port configured. Verify your RPC configuration. You can find examples in our docs: https://docs.nethermind.io/nethermind/ethereum-client/engine-jsonrpc-configuration-examples");
-                _environment.Exit(ExitCodes.NoEngineModule);
+                throw new InvalidConfigurationException(
+                    "Engine module wasn't configured on any port. Nethermind can't work without engine port configured. Verify your RPC configuration. You can find examples in our docs: https://docs.nethermind.io/nethermind/ethereum-client/engine-jsonrpc-configuration-examples",
+                    ExitCodes.NoEngineModule);
             }
+        }
+
+        private bool HasTtd()
+        {
+            return _api.SpecProvider?.TerminalTotalDifficulty != null || _mergeConfig.TerminalTotalDifficulty != null;
         }
 
         public Task InitNetworkProtocol()
@@ -399,7 +412,7 @@ namespace Nethermind.Merge.Plugin
                     _api.LogManager);
                 _beaconSync = new BeaconSync(_beaconPivot, _api.BlockTree, _syncConfig, _blockCacheService, _api.LogManager);
 
-                _api.BetterPeerStrategy = new MergeBetterPeerStrategy(_api.BetterPeerStrategy, _poSSwitcher,  _beaconPivot, _api.LogManager);
+                _api.BetterPeerStrategy = new MergeBetterPeerStrategy(_api.BetterPeerStrategy, _poSSwitcher, _beaconPivot, _api.LogManager);
 
                 _api.SyncModeSelector = new MultiSyncModeSelector(
                     _api.SyncProgressResolver,
@@ -451,6 +464,6 @@ namespace Nethermind.Merge.Plugin
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
 
-        public string SealEngineType => "Eth2Merge";
+        public bool MustInitialize { get => true; }
     }
 }

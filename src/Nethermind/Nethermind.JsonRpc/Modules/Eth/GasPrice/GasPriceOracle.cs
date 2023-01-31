@@ -183,7 +183,7 @@ namespace Nethermind.JsonRpc.Modules.Eth.GasPrice
         {
             int lastIndex = count - 1;
             float percentileOfLastIndex = lastIndex * ((float)EthGasPriceConstants.PercentileOfSortedTxs / 100);
-            int roundedIndex = (int) Math.Round(percentileOfLastIndex);
+            int roundedIndex = (int)Math.Round(percentileOfLastIndex);
             return roundedIndex;
         }
 

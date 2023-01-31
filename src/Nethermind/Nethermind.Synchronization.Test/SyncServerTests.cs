@@ -180,7 +180,7 @@ namespace Nethermind.Synchronization.Test
             Block newBestLocalBlock = Build.A.Block.WithNumber(localBlockTree.Head!.Number + 1).WithParent(localBlockTree.Head!).WithDifficulty(10_000_002L).TestObject;
             localBlockTree.SuggestBlock(newBestLocalBlock);
 
-            PoSSwitcher poSSwitcher = new(new MergeConfig() { Enabled = true }, new SyncConfig(), new MemDb(), localBlockTree, testSpecProvider, LimboLogs.Instance);
+            PoSSwitcher poSSwitcher = new(new MergeConfig() { TerminalTotalDifficulty = $"{testSpecProvider.TerminalTotalDifficulty}" }, new SyncConfig(), new MemDb(), localBlockTree, testSpecProvider, LimboLogs.Instance);
             HeaderValidator headerValidator = new(
                 localBlockTree,
                 Always.Valid,
@@ -330,12 +330,12 @@ namespace Nethermind.Synchronization.Test
             Context ctx = CreateMergeContext(10, (UInt256)ttd);
             Block newPostMergeBlock = Build.A.Block.WithDifficulty(0).WithParent(ctx.LocalBlockTree.Head).WithTotalDifficulty(ctx.LocalBlockTree.Head.TotalDifficulty).TestObject;
             ctx.LocalBlockTree.SuggestBlock(newPostMergeBlock);
-            ctx.LocalBlockTree.UpdateMainChain(new[] {newPostMergeBlock} , true, true );
+            ctx.LocalBlockTree.UpdateMainChain(new[] { newPostMergeBlock }, true, true);
 
             Block block = remoteBlockTree.FindBlock(9, BlockTreeLookupOptions.None);
 
             ctx.SyncServer.AddNewBlock(block, ctx.NodeWhoSentTheBlock);
-            Assert.AreEqual( ctx.LocalBlockTree.BestSuggestedHeader!.Number, 10);
+            Assert.AreEqual(ctx.LocalBlockTree.BestSuggestedHeader!.Number, 10);
             ctx.LocalBlockTree.FindBlock(poWBlockPostMerge.Hash!, BlockTreeLookupOptions.None).Should().NotBeNull();
             ctx.LocalBlockTree.BestSuggestedHeader!.Hash.Should().Be(newPostMergeBlock.Hash!);
             ctx.LocalBlockTree.FindCanonicalBlockInfo(poWBlockPostMerge.Number).BlockHash.Should().NotBe(poWBlockPostMerge.Hash);
@@ -350,7 +350,7 @@ namespace Nethermind.Synchronization.Test
             Block genesis = Build.A.Block.Genesis.TestObject;
             BlockTree localBlockTree = Build.A.BlockTree(genesis, testSpecProvider).OfChainLength(blockTreeChainLength).TestObject;
 
-            PoSSwitcher poSSwitcher = new(new MergeConfig() { Enabled = true }, new SyncConfig(), new MemDb(), localBlockTree, testSpecProvider, LimboLogs.Instance);
+            PoSSwitcher poSSwitcher = new(new MergeConfig() { TerminalTotalDifficulty = $"{ttd}" }, new SyncConfig(), new MemDb(), localBlockTree, testSpecProvider, LimboLogs.Instance);
             MergeSealEngine sealEngine = new(new SealEngine(new NethDevSealEngine(), Always.Valid), poSSwitcher, new MergeSealValidator(poSSwitcher, Always.Valid), LimboLogs.Instance);
             HeaderValidator headerValidator = new(
                 localBlockTree,
@@ -505,10 +505,11 @@ namespace Nethermind.Synchronization.Test
             await Task.Delay(100); // notifications fire on separate task
             await Task.WhenAll(syncPeerMock1.Close(), syncPeerMock2.Close());
             remoteServer1.DidNotReceive().AddNewBlock(remoteBlockTree.Head!, Arg.Any<ISyncPeer>());
-            remoteServer2.Received().AddNewBlock(Arg.Is<Block>(b => b.Hash == remoteBlockTree.Head!.Hash) , Arg.Any<ISyncPeer>());
+            remoteServer2.Received().AddNewBlock(Arg.Is<Block>(b => b.Hash == remoteBlockTree.Head!.Hash), Arg.Any<ISyncPeer>());
         }
 
         [Test]
+        [Retry(3)]
         public async Task Broadcast_NewBlock_on_arrival_to_sqrt_of_peers([Values(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 50, 100)] int peerCount)
         {
             int expectedPeers = (int)Math.Ceiling(Math.Sqrt(peerCount - 1)); // -1 because of ignoring sender
@@ -542,9 +543,9 @@ namespace Nethermind.Synchronization.Test
             ctx.PeerPool.AllPeers.Returns(peers);
             ctx.PeerPool.PeerCount.Returns(peers.Length);
             ctx.SyncServer.AddNewBlock(remoteBlockTree.Head!, peers[0].SyncPeer);
-            await Task.Delay(100); // notifications fire on separate task
+
+            Assert.That(() => count, Is.EqualTo(expectedPeers).After(5000, 100));
             await Task.WhenAll(peers.Select(p => ((SyncPeerMock)p.SyncPeer).Close()).ToArray());
-            count.Should().Be(expectedPeers);
         }
 
         [Test]
