@@ -46,6 +46,8 @@ namespace Nethermind.Core
         public const int PoaCore = 99;
         public const int Volta = 73799;
         public const int Sepolia = 11155111;
+        public const int Fuse = 122;
+        public const int Spark = 123;
 
         public static string GetBlockchainName(ulong networkId)
         {
@@ -68,6 +70,8 @@ namespace Nethermind.Core
                 PoaCore => nameof(PoaCore),
                 Volta => nameof(Volta),
                 Sepolia => nameof(Sepolia),
+                Fuse => nameof(Fuse),
+                Spark => nameof(Spark),
                 _ => networkId.ToString()
             };
         }
