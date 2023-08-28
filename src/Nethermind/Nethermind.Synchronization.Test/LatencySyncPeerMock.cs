@@ -12,7 +12,6 @@ using Nethermind.Core.Crypto;
 using Nethermind.Core.Test.Builders;
 using Nethermind.Int256;
 using Nethermind.Stats.Model;
-using NUnit.Framework.Constraints;
 
 namespace Nethermind.Synchronization.Test
 {
@@ -58,7 +57,7 @@ namespace Nethermind.Synchronization.Test
         public byte ProtocolVersion { get; }
         public string ProtocolCode { get; }
 
-        public void Disconnect(InitiateDisconnectReason reason, string details)
+        public void Disconnect(DisconnectReason reason, string details)
         {
             throw new NotImplementedException();
         }

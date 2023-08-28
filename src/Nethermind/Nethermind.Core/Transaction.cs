@@ -4,7 +4,6 @@
 using System.Buffers;
 using System;
 using System.Diagnostics;
-using System.Runtime.InteropServices;
 using System.Text;
 using Nethermind.Core.Crypto;
 using Nethermind.Core.Eip2930;
@@ -112,7 +111,7 @@ namespace Nethermind.Core
 
         public AccessList? AccessList { get; set; } // eip2930
 
-        public UInt256? MaxFeePerDataGas { get; set; } // eip4844
+        public UInt256? MaxFeePerBlobGas { get; set; } // eip4844
 
         public byte[]?[]? BlobVersionedHashes { get; set; } // eip4844
 
@@ -173,7 +172,8 @@ namespace Nethermind.Core
 
             if (SupportsBlobs)
             {
-                builder.AppendLine($"{indent}BlobVersionedHashes: {BlobVersionedHashes?.Length}");
+                builder.AppendLine($"{indent}{nameof(MaxFeePerBlobGas)}: {MaxFeePerBlobGas}");
+                builder.AppendLine($"{indent}{nameof(BlobVersionedHashes)}: {BlobVersionedHashes?.Length}");
             }
 
             return builder.ToString();

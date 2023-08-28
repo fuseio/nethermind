@@ -37,7 +37,11 @@ public class RateLimiterTests
             }
         }).ToArray();
 
+<<<<<<< HEAD
         Task.WaitAll(tasks);
+=======
+        await Task.WhenAll(tasks);
+>>>>>>> upstream/fix/revert-message
 
         int effectivePerSec = (int)(counter / (DateTimeOffset.Now - startTime).TotalSeconds);
         effectivePerSec.Should().BeInRange((int)(eventPerSec * 0.5), (int)(eventPerSec * 1.1));
