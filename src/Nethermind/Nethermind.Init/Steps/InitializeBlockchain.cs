@@ -124,7 +124,7 @@ namespace Nethermind.Init.Steps
             }
             else
             {
-                pruningStrategy = No.Pruning;
+                pruningStrategy = Nethermind.Trie.Pruning.No.Pruning;
                 persistenceStrategy = Persist.EveryBlock;
             }
 
