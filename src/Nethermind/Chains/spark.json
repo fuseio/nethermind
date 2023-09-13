@@ -1,0 +1,120 @@
+{
+	"name": "FuseNetwork",
+	"engine": {
+		"authorityRound": {
+			"params": {
+				"stepDuration": "5",
+				"blockReward": "0x0",
+				"blockRewardContractAddress": "0x52B9b9585e1b50DA5600f7dbD94E9fE68943162c",
+				"blockRewardContractTransition": 1000,
+				"validators": {
+					"multi": {
+						"0": {
+							"list": [ "0xba7829b381f07cca0d186bdf619fdc6c7f756d0a" ]
+						},
+            "1000": {
+              "safeContract": "0xC8c3a332f9e4CE6bfFFcf967026cB006Db2311c7"
+            },
+            "6905799": {
+							"list": [ "0x379e81df609e8235c9026f25a379d49a27b10d30","0xba7829b381f07cca0d186bdf619fdc6c7f756d0a","0xe4cc9b2836ba373c3ccf473cbb15ed07007963ee","0xbc048d3064fd912b40a9aadcf67a14fd4601db77"]
+            },
+            "6910120": {
+              "safeContract": "0xC8c3a332f9e4CE6bfFFcf967026cB006Db2311c7"
+            },
+            "6925000": {
+              "list": [ "0x379e81df609e8235c9026f25a379d49a27b10d30","0xba7829b381f07cca0d186bdf619fdc6c7f756d0a","0xe4cc9b2836ba373c3ccf473cbb15ed07007963ee","0xbc048d3064fd912b40a9aadcf67a14fd4601db77"]
+            }
+          }
+        }
+      }
+    }
+  },
+	"params": {
+    "gasLimitBoundDivisor": "0x400",
+    "maximumExtraDataSize": "0x20",
+    "minGasLimit": "0x1388",
+    "networkID" : "0x07b",
+    "eip155Transition": 0,
+    "validateChainIdTransition": 0,
+    "eip140Transition": 0,
+    "eip211Transition": 0,
+    "eip214Transition": 0,
+    "eip658Transition": 0,
+    "eip150Transition": "0x0",
+    "eip160Transition": "0x0",
+    "eip161abcTransition": "0x0",
+    "eip161dTransition": "0x0",
+    "eip98Transition": "0x7fffffffffffff",
+    "eip145Transition": "0x6bf64",
+    "eip1014Transition": "0x6bf64",
+    "eip1052Transition": "0x6bf64",
+    "eip1283Transition": "0x13d620",
+    "eip1344Transition": "0x13d620",
+    "eip1706Transition": "0x13d620",
+    "eip1884Transition": "0x13d620",
+    "eip2028Transition": "0x13d620",
+    "eip2929Transition": "0x13d620",
+    "eip2930Transition": "0x13d620",
+    "maxCodeSize": 24576,
+    "maxCodeSizeTransition": "0x0"
+	},
+	"genesis": {
+		"seal": {
+			"authorityRound": {
+				"step": "0x0",
+				"signature": "0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+			}
+		},
+		"difficulty": "0x20000",
+		"gasLimit": "0x5F5E100"
+	},
+	"nodes": [
+		"enode://beea6b15658e694f76d5ac7775c9be5cb88dfe12a67d464fdb1134ca5bf2d47f44047be935547780c8ec300920e2d684a4fe90c9ba1c66a6f559ac2ec0976d28@34.22.208.55:30303",
+		"enode://4b115030420718523198eaad02c68961814c1d2f2f1c437d25f6a05279438465865b454431b5b0d1e839f6c37d9d52668105eb285e6aa6362c0601ef4fb8854b@34.76.70.196:30303",
+		"enode://f1eb1ac3f624f6862fd2d6f56c30671d808088adef18a4fafd508665a3a3ce063553ff8be290247ed074ee759d2d05bf95b629a72e30eedd47e2f2df85d6f581@35.205.144.49:30303",
+		"enode://94230ecf060189d842d14a7c039d37aae328c317d6b0d66e4f1b67b307a6e64a11f5309d45a9c536824909cf828cf34eb730adcb60872cd723be832d2979f811@34.34.138.246:30303"
+	],
+	"accounts": {
+		"0x0000000000000000000000000000000000000001": {
+			"balance": "1",
+			"builtin": { "name": "ecrecover", "pricing": { "linear": { "base": 3000, "word": 0 } } }
+		},
+		"0x0000000000000000000000000000000000000002": {
+			"balance": "1",
+			"builtin": { "name": "sha256", "pricing": { "linear": { "base": 60, "word": 12 } } }
+		},
+		"0x0000000000000000000000000000000000000003": {
+			"balance": "1",
+			"builtin": { "name": "ripemd160", "pricing": { "linear": { "base": 600, "word": 120 } } }
+		},
+		"0x0000000000000000000000000000000000000004": {
+			"balance": "1",
+			"builtin": { "name": "identity", "pricing": { "linear": { "base": 15, "word": 3 } } }
+		},
+		"0x0000000000000000000000000000000000000005": {
+			"builtin": { "name": "modexp", "activate_at": 0, "pricing": { "modexp": { "divisor": 20 } } }
+		},
+		"0x0000000000000000000000000000000000000006": {
+			"builtin": {
+				"name": "alt_bn128_add",
+				"activate_at": 0,
+				"pricing": { "linear": { "base": 500, "word": 0 } }
+			}
+		},
+		"0x0000000000000000000000000000000000000007": {
+			"builtin": {
+				"name": "alt_bn128_mul",
+				"activate_at": 0,
+				"pricing": { "linear": { "base": 40000, "word": 0 } }
+			}
+		},
+		"0x0000000000000000000000000000000000000008": {
+			"builtin": {
+				"name": "alt_bn128_pairing",
+				"activate_at": 0,
+				"pricing": { "alt_bn128_pairing": { "base": 100000, "pair": 80000 } }
+			}
+		},
+		"0xba7829b381f07cca0d186bdf619fdc6c7f756d0a": { "balance": "300000000000000000000000000" }
+	}
+}
