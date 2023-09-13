@@ -144,6 +144,34 @@ public class ChainSpecBasedSpecProviderTests
     }
 
     [Test]
+    public void Holesky_loads_properly()
+    {
+        ChainSpec chainSpec = LoadChainSpecFromChainFolder("holesky");
+        ChainSpecBasedSpecProvider provider = new(chainSpec);
+        ISpecProvider hardCodedSpec = HoleskySpecProvider.Instance;
+
+        List<ForkActivation> forkActivationsToTest = new()
+        {
+            new ForkActivation(0, HoleskySpecProvider.GenesisTimestamp),
+            new ForkActivation(1, HoleskySpecProvider.ShanghaiTimestamp),
+            new ForkActivation(3, HoleskySpecProvider.ShanghaiTimestamp + 24),
+            new ForkActivation(4, HoleskySpecProvider.CancunTimestamp),
+            new ForkActivation(5, HoleskySpecProvider.CancunTimestamp + 12),
+        };
+
+        CompareSpecProviders(hardCodedSpec, provider, forkActivationsToTest);
+        Assert.That(provider.TerminalTotalDifficulty, Is.EqualTo(hardCodedSpec.TerminalTotalDifficulty));
+        Assert.That(provider.GenesisSpec.Eip1559TransitionBlock, Is.EqualTo(0));
+        Assert.That(provider.GenesisSpec.DifficultyBombDelay, Is.EqualTo(0));
+        Assert.That(provider.ChainId, Is.EqualTo(BlockchainIds.Holesky));
+        Assert.That(provider.NetworkId, Is.EqualTo(BlockchainIds.Holesky));
+
+        // Still commented since Cancun timestamp is set to be very far but not a 256 slot multiple
+        //GetTransitionTimestamps(chainSpec.Parameters).Should().AllSatisfy(
+        //    t => ValidateSlotByTimestamp(t, HoleskySpecProvider.GenesisTimestamp).Should().BeTrue());
+    }
+
+    [Test]
     public void Rinkeby_loads_properly()
     {
         ChainSpecLoader loader = new(new EthereumJsonSerializer());
@@ -437,43 +465,6 @@ public class ChainSpecBasedSpecProviderTests
             Assert.That(propertyInfo.GetValue(actualSpec), Is.EqualTo(propertyInfo.GetValue(expectedSpec)),
                 activation + "." + propertyInfo.Name);
         }
-    }
-
-    [Test]
-    public void Ropsten_loads_properly()
-    {
-        ChainSpecLoader loader = new(new EthereumJsonSerializer());
-        string path = Path.Combine(TestContext.CurrentContext.WorkDirectory, "../../../../Chains/ropsten.json");
-        ChainSpec chainSpec = loader.Load(File.ReadAllText(path));
-        chainSpec.Parameters.Eip2537Transition.Should().BeNull();
-
-        ChainSpecBasedSpecProvider provider = new(chainSpec);
-        RopstenSpecProvider ropsten = RopstenSpecProvider.Instance;
-
-        List<ForkActivation> forkActivationsToTest = new()
-        {
-            (ForkActivation)0,
-            (ForkActivation)1,
-            (ForkActivation)(RopstenSpecProvider.SpuriousDragonBlockNumber - 1),
-            (ForkActivation)RopstenSpecProvider.SpuriousDragonBlockNumber,
-            (ForkActivation)(RopstenSpecProvider.ByzantiumBlockNumber - 1),
-            (ForkActivation)RopstenSpecProvider.ByzantiumBlockNumber,
-            (ForkActivation)(RopstenSpecProvider.ConstantinopleFixBlockNumber - 1),
-            (ForkActivation)RopstenSpecProvider.ConstantinopleFixBlockNumber,
-            (ForkActivation)(RopstenSpecProvider.IstanbulBlockNumber - 1),
-            (ForkActivation)RopstenSpecProvider.IstanbulBlockNumber,
-            (ForkActivation)(RopstenSpecProvider.MuirGlacierBlockNumber - 1),
-            (ForkActivation)RopstenSpecProvider.MuirGlacierBlockNumber,
-            (ForkActivation)(RopstenSpecProvider.BerlinBlockNumber - 1),
-            (ForkActivation)RopstenSpecProvider.BerlinBlockNumber,
-            (ForkActivation)(RopstenSpecProvider.LondonBlockNumber - 1),
-            (ForkActivation)RopstenSpecProvider.LondonBlockNumber,
-            (ForkActivation)999_999_999, // far in the future
-        };
-
-        CompareSpecProviders(ropsten, provider, forkActivationsToTest, CompareSpecsOptions.CheckDifficultyBomb);
-        Assert.That(provider.TerminalTotalDifficulty, Is.EqualTo(RopstenSpecProvider.Instance.TerminalTotalDifficulty));
-        Assert.That(provider.GenesisSpec.Eip1559TransitionBlock, Is.EqualTo(RopstenSpecProvider.LondonBlockNumber));
     }
 
     private ChainSpec LoadChainSpecFromChainFolder(string chain)
