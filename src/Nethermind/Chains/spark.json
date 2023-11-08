@@ -27,14 +27,14 @@
             "13155890": {
               "safeContract": "0x156F1ba0f812a3351eCf0F44a255686ce17A8E03"
             },
-			"13224100": {
-			  "safeContract": "0x7624447aA10960f801b8424f9E320b18C4F0D18c"
+			"13224200": {
+			  "safeContract": "0xdC25f9f0D8ebDb498641e5D5395145018B1b3dc4"
 			}
           }
         },
         "blockRewardContractTransitions": {
           "13155890": "0xA3F096aF77Ecc564C9D44A9f5f4b09F38142EA11",
-          "13224100": "0xA1e87278FcA3a151B5B15AfaE1d0eb1c1B26659B"
+          "13224200": "0x6F5255BDAB39dE1568a4be6961C13a7638B1611c"
         }
       }
     }
