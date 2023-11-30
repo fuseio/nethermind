@@ -61,7 +61,7 @@ namespace Nethermind.JsonRpc.Modules.Eth.GasPrice
             UInt256 gasPriceEstimate = GetGasPriceAtPercentile(txGasPrices.ToList()) ?? GetMinimumGasPrice(headBlock.BaseFeePerGas);
             if (_UseMinGasPrice == true)
             {
-                    gasPriceEstimate = UInt256.Max(gasPriceEstimate, GetMinimumGasPrice(headBlock.BaseFeePerGas));
+                gasPriceEstimate = UInt256.Max(gasPriceEstimate, GetMinimumGasPrice(headBlock.BaseFeePerGas));
             }
             gasPriceEstimate = UInt256.Min(gasPriceEstimate!, EthGasPriceConstants.MaxGasPrice);
             _gasPriceEstimation.Set(headBlockHash, gasPriceEstimate);
