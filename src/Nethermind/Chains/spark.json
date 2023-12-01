@@ -9,9 +9,9 @@
 			"multi": {
 			  "0": {
 				"list": [
-				  "0x503a2ca9e4fb281155c48e5ae690c8e3543a9d5b",
-				  "0x79610a5a9da29b6e9ee5e6e524d6e837653d0021"
-				]
+					"0x503a2ca9e4fb281155c48e5ae690c8e3543a9d5b",
+					"0x79610a5a9da29b6e9ee5e6e524d6e837653d0021"
+				  ]
 			  }
 			}
 		  }
@@ -118,7 +118,21 @@
 		  "pricing": { "alt_bn128_pairing": { "base": 100000, "pair": 80000 } }
 		}
 	  },
-	  "0xba7829b381f07cca0d186bdf619fdc6c7f756d0a": {
+	  "0x0000000000000000000000000000000000000009": {
+		"builtin": {
+		  "name": "blake2_f",
+		  "pricing": {
+			"0xd29240": {
+			  "info": "EIP-152 Istanbul HF",
+			  "price": { "blake2_f": { "gas_per_round": 1 } }
+			}
+		  }
+		}
+	  },
+	  "0x503a2ca9e4fb281155c48e5ae690c8e3543a9d5b": {
+		"balance": "300000000000000000000000000"
+	  },
+	  "0x79610a5a9da29b6e9ee5e6e524d6e837653d0021": {
 		"balance": "300000000000000000000000000"
 	  }
 	}
