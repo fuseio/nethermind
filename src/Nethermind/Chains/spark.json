@@ -12,14 +12,8 @@
 					"0x503a2ca9e4fb281155c48e5ae690c8e3543a9d5b",
 					"0x79610a5a9da29b6e9ee5e6e524d6e837653d0021"
 				  ]
-			  },
-			  "22000": {
-				"safeContract": "0x52466D67975555512c6F4e16385BAA73b741b133"
 			  }
 			}
-		  },
-		  "blockRewardContractTransitions": {
-			"22000": "0x2055FBf8526DACd0E445436823e948733fBCD4B2"
 		  }
 		}
 	  }
