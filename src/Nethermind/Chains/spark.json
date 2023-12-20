@@ -43,14 +43,14 @@
             "13454700": {
               "safeContract": "0xafF30BbF8dA646Edf463cbc6DC929D43c27eD475"
             },
-            "13454750": {
+            "13454850": {
               "safeContract": "0x9428870927c8233E80521a076748Dc1f8ae9CAe4"
             }
           }
         },
         "blockRewardContractTransitions": {
           "13454700": "0x7b28A8ee4A4EDbcDCDDA978ae4649F903A6F5B69",
-          "13454750": "0x9202589BCe07bCD52c2566A52135A96f85DbC119"
+          "13454850": "0x9202589BCe07bCD52c2566A52135A96f85DbC119"
         }
       }
     }
