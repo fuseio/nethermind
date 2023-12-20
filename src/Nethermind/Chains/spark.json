@@ -40,13 +40,13 @@
                 "0x79610a5a9da29b6e9ee5e6e524d6e837653d0021"
               ]
             },
-            "340616800": {
+            "13455000": {
               "safeContract": "0xafF30BbF8dA646Edf463cbc6DC929D43c27eD475"
             }
           }
         },
         "blockRewardContractTransitions": {
-          "340616800": "0x7b28A8ee4A4EDbcDCDDA978ae4649F903A6F5B69"
+          "13455000": "0x7b28A8ee4A4EDbcDCDDA978ae4649F903A6F5B69"
         }
       }
     }
